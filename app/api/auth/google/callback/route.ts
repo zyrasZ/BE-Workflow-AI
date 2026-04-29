@@ -34,8 +34,8 @@ export async function GET(request: NextRequest) {
       console.error('OAuth callback validation failed:', validation.error);
       
       // Redirect to frontend with error
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const errorUrl = `${appUrl}/auth/error?message=${encodeURIComponent(validation.error || 'OAuth failed')}`;
+      const frontendUrl = process.env.FRONTEND_ERROR_URL || process.env.FRONTEND_URL || 'http://localhost:5173/login';
+      const errorUrl = `${frontendUrl}?error=${encodeURIComponent(validation.error || 'OAuth failed')}`;
       return Response.redirect(errorUrl);
     }
 
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
       const errorMessage = parseOAuthError(exchangeError);
       
       // Redirect to frontend with error
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const errorUrl = `${appUrl}/auth/error?message=${encodeURIComponent(errorMessage)}`;
+      const frontendUrl = process.env.FRONTEND_ERROR_URL || process.env.FRONTEND_URL || 'http://localhost:5173/login';
+      const errorUrl = `${frontendUrl}?error=${encodeURIComponent(errorMessage)}`;
       return Response.redirect(errorUrl);
     }
 
@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
       console.error('No user or session returned from OAuth');
       
       // Redirect to frontend with error
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const errorUrl = `${appUrl}/auth/error?message=${encodeURIComponent('Failed to authenticate')}`;
+      const frontendUrl = process.env.FRONTEND_ERROR_URL || process.env.FRONTEND_URL || 'http://localhost:5173/login';
+      const errorUrl = `${frontendUrl}?error=${encodeURIComponent('Failed to authenticate')}`;
       return Response.redirect(errorUrl);
     }
 
@@ -80,17 +80,17 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirect to frontend with success
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const successUrl = `${appUrl}/auth/success?access_token=${data.session.access_token}`;
+    const frontendUrl = process.env.FRONTEND_SUCCESS_URL || process.env.FRONTEND_URL || 'http://localhost:5173/auth/callback';
+    const successUrl = `${frontendUrl}?access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}`;
     return Response.redirect(successUrl);
 
   } catch (error) {
     console.error('OAuth callback error:', error);
     
     // Redirect to frontend with error
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_ERROR_URL || process.env.FRONTEND_URL || 'http://localhost:5173/login';
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorUrl = `${appUrl}/auth/error?message=${encodeURIComponent(errorMessage)}`;
+    const errorUrl = `${frontendUrl}?error=${encodeURIComponent(errorMessage)}`;
     return Response.redirect(errorUrl);
   }
 }
