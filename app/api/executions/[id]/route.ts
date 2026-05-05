@@ -5,7 +5,7 @@ import { validateRequired, errorResponse } from '@/lib/utils/errors';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/executions/[id] - Get execution details
+// GET /api/executions/[id] - Get execution details with logs
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -39,6 +39,18 @@ export async function GET(
       return ApiResponse.notFound('Execution not found');
     }
 
+    // Fetch execution logs for this execution
+    const { data: logs, error: logsError } = await supabase
+      .from('execution_logs')
+      .select('*')
+      .eq('execution_id', id)
+      .order('started_at', { ascending: true });
+
+    if (logsError) {
+      console.error('Error fetching execution logs:', logsError);
+      // Don't fail the request if logs can't be fetched
+    }
+
     // Calculate duration
     let duration = null;
     if (data.started_at && data.completed_at) {
@@ -63,6 +75,7 @@ export async function GET(
       started_at: data.started_at,
       completed_at: data.completed_at,
       duration,
+      logs: logs || [],
     };
 
     return ApiResponse.success(execution);

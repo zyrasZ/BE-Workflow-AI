@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
           access_type: 'offline',
           prompt: 'consent',
         },
-        scopes: 'email profile',
+        scopes: 'email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
       },
     });
 
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
           access_type: 'offline',
           prompt: 'consent',
         },
-        scopes: 'email profile',
+        scopes: 'email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
       },
     });
 

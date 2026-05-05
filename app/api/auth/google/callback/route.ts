@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     // Redirect to frontend with success
     const frontendUrl = process.env.FRONTEND_SUCCESS_URL || process.env.FRONTEND_URL || 'http://localhost:5173/auth/callback';
-    const successUrl = `${frontendUrl}?access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}`;
+    const successUrl = `${frontendUrl}?access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}&provider_token=${data.session.provider_token || ''}`;
     return Response.redirect(successUrl);
 
   } catch (error) {

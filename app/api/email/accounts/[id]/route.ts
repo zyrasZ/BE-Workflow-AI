@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { encryptConfig, decryptConfig, redactSensitiveFields } from '@/lib/email-nodes/utils/encryption';
+import { validateEmailAccountConnection } from '@/lib/email-nodes/utils/connection-validator';
 
 /**
  * Email account configuration types
@@ -33,10 +34,12 @@ interface EmailAccountConfig {
 interface UpdateEmailAccountRequest {
   name?: string;
   email_address?: string;
+  auth_type?: 'imap-smtp' | 'oauth2';
   config?: EmailAccountConfig;
   is_active?: boolean;
   last_sync_at?: string;
   last_error?: string;
+  validate_connection?: boolean; // Optional flag to validate connection on update
 }
 
 /**
@@ -172,7 +175,7 @@ export async function PATCH(
     const body: UpdateEmailAccountRequest = await request.json();
     
     // Validate at least one field to update
-    if (!body.name && !body.email_address && !body.config && body.is_active === undefined && !body.last_sync_at && body.last_error === undefined) {
+    if (!body.name && !body.email_address && !body.auth_type && !body.config && body.is_active === undefined && !body.last_sync_at && body.last_error === undefined) {
       return NextResponse.json(
         { error: 'Validation error', message: 'At least one field must be provided for update' },
         { status: 400 }
@@ -190,11 +193,78 @@ export async function PATCH(
       }
     }
     
+    // Validate auth_type if provided
+    if (body.auth_type) {
+      const validAuthTypes = ['imap-smtp', 'oauth2'];
+      if (!validAuthTypes.includes(body.auth_type)) {
+        return NextResponse.json(
+          { error: 'Validation error', message: `Invalid auth_type. Must be one of: ${validAuthTypes.join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // Validate connection if config is being updated and validation is requested
+    const shouldValidate = body.config && body.validate_connection !== false;
+    
+    if (shouldValidate && body.config) {
+      // Fetch current account to get auth_type
+      const { data: currentAccount, error: fetchError } = await supabase
+        .from('email_accounts')
+        .select('auth_type')
+        .eq('id', accountId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (fetchError) {
+        console.error('Error fetching current account:', fetchError);
+        return NextResponse.json(
+          { error: 'Database error', message: 'Failed to fetch current account' },
+          { status: 500 }
+        );
+      }
+      
+      const authType = body.auth_type || currentAccount.auth_type || 'imap-smtp';
+      
+      try {
+        const validationResult = await validateEmailAccountConnection(
+          authType,
+          body.config
+        );
+        
+        if (!validationResult.success) {
+          return NextResponse.json(
+            { 
+              error: 'Connection validation failed', 
+              message: validationResult.message,
+              details: validationResult.error 
+            },
+            { status: 400 }
+          );
+        }
+        
+        // Set last_sync_at to current time on successful validation
+        body.last_sync_at = new Date().toISOString();
+        body.last_error = undefined; // Clear any previous errors
+      } catch (validationError) {
+        console.error('Error validating connection:', validationError);
+        return NextResponse.json(
+          { 
+            error: 'Connection validation error', 
+            message: 'Failed to validate email account connection',
+            details: validationError instanceof Error ? validationError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
+    }
+    
     // Build update object
     const updateData: any = {};
     
     if (body.name) updateData.name = body.name;
     if (body.email_address) updateData.email_address = body.email_address;
+    if (body.auth_type) updateData.auth_type = body.auth_type;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
     if (body.last_sync_at) updateData.last_sync_at = body.last_sync_at;
     if (body.last_error !== undefined) updateData.last_error = body.last_error;

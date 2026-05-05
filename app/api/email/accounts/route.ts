@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { encryptConfig, decryptConfig, redactSensitiveFields } from '@/lib/email-nodes/utils/encryption';
+import { validateEmailAccountConnection } from '@/lib/email-nodes/utils/connection-validator';
 
 /**
  * Email account configuration types
@@ -38,7 +39,9 @@ interface CreateEmailAccountRequest {
   name: string;
   email_address: string;
   provider: 'imap' | 'pop3' | 'gmail' | 'outlook' | 'smtp';
+  auth_type: 'imap-smtp' | 'oauth2';
   config: EmailAccountConfig;
+  validate_connection?: boolean; // Optional flag to validate connection on creation
 }
 
 interface EmailAccountResponse {
@@ -184,9 +187,9 @@ export async function POST(request: NextRequest) {
     const body: CreateEmailAccountRequest = await request.json();
     
     // Validate required fields
-    if (!body.name || !body.email_address || !body.provider || !body.config) {
+    if (!body.name || !body.email_address || !body.provider || !body.auth_type || !body.config) {
       return NextResponse.json(
-        { error: 'Validation error', message: 'Missing required fields: name, email_address, provider, config' },
+        { error: 'Validation error', message: 'Missing required fields: name, email_address, provider, auth_type, config' },
         { status: 400 }
       );
     }
@@ -200,6 +203,15 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Validate auth_type
+    const validAuthTypes = ['imap-smtp', 'oauth2'];
+    if (!validAuthTypes.includes(body.auth_type)) {
+      return NextResponse.json(
+        { error: 'Validation error', message: `Invalid auth_type. Must be one of: ${validAuthTypes.join(', ')}` },
+        { status: 400 }
+      );
+    }
+    
     // Validate email address format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(body.email_address)) {
@@ -207,6 +219,43 @@ export async function POST(request: NextRequest) {
         { error: 'Validation error', message: 'Invalid email address format' },
         { status: 400 }
       );
+    }
+    
+    // Validate connection if requested (default: true)
+    const shouldValidate = body.validate_connection !== false;
+    let lastSyncAt = null;
+    
+    if (shouldValidate) {
+      try {
+        const validationResult = await validateEmailAccountConnection(
+          body.auth_type,
+          body.config
+        );
+        
+        if (!validationResult.success) {
+          return NextResponse.json(
+            { 
+              error: 'Connection validation failed', 
+              message: validationResult.message,
+              details: validationResult.error 
+            },
+            { status: 400 }
+          );
+        }
+        
+        // Set last_sync_at to current time on successful validation
+        lastSyncAt = new Date().toISOString();
+      } catch (validationError) {
+        console.error('Error validating connection:', validationError);
+        return NextResponse.json(
+          { 
+            error: 'Connection validation error', 
+            message: 'Failed to validate email account connection',
+            details: validationError instanceof Error ? validationError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
     }
     
     // Encrypt configuration
@@ -229,11 +278,13 @@ export async function POST(request: NextRequest) {
         name: body.name,
         email_address: body.email_address,
         provider: body.provider,
+        auth_type: body.auth_type,
         encrypted_config: encryptedData.encrypted,
         encryption_iv: encryptedData.iv,
         encryption_auth_tag: encryptedData.authTag,
         encryption_algorithm: encryptedData.algorithm,
-        is_active: true
+        is_active: true,
+        last_sync_at: lastSyncAt,
       })
       .select()
       .single();

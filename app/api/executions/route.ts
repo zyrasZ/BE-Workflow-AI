@@ -15,8 +15,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const workflowId = searchParams.get('workflow_id');
     const status = searchParams.get('status');
+    const startDate = searchParams.get('start_date');
+    const endDate = searchParams.get('end_date');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
+
+    // Validate limit and offset
+    if (limit < 1 || limit > 100) {
+      return ApiResponse.badRequest('Limit must be between 1 and 100');
+    }
+    if (offset < 0) {
+      return ApiResponse.badRequest('Offset must be non-negative');
+    }
 
     // Build query
     let query = supabase
@@ -41,7 +51,27 @@ export async function GET(request: NextRequest) {
       query = query.eq('workflow_id', workflowId);
     }
     if (status) {
+      // Validate status value
+      if (!['running', 'completed', 'failed'].includes(status)) {
+        return ApiResponse.badRequest('Invalid status. Must be: running, completed, or failed');
+      }
       query = query.eq('status', status);
+    }
+    if (startDate) {
+      // Validate date format
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return ApiResponse.badRequest('Invalid start_date format. Use ISO 8601 format (e.g., 2024-01-01T00:00:00Z)');
+      }
+      query = query.gte('started_at', start.toISOString());
+    }
+    if (endDate) {
+      // Validate date format
+      const end = new Date(endDate);
+      if (isNaN(end.getTime())) {
+        return ApiResponse.badRequest('Invalid end_date format. Use ISO 8601 format (e.g., 2024-01-31T23:59:59Z)');
+      }
+      query = query.lte('started_at', end.toISOString());
     }
 
     const { data, error, count } = await query;
