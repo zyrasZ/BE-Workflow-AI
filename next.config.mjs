@@ -82,6 +82,13 @@ const nextConfig = {
         tls: false,
       };
     }
+    
+    // Suppress Handlebars warning about require.extensions
+    config.ignoreWarnings = [
+      { module: /node_modules\/handlebars\/lib\/index\.js/ },
+      /require\.extensions is not supported by webpack/,
+    ];
+    
     return config;
   },
 
