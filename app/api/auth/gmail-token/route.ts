@@ -36,7 +36,14 @@ export async function GET(request: NextRequest) {
 
     // Check if provider_token exists (Google access token)
     if (!session.provider_token) {
-      return ApiResponse.error('No Gmail token found. Please re-authenticate with Google.', 404, 'NO_GMAIL_TOKEN');
+      console.error('⚠️  provider_token is null. "Save provider tokens" may not be enabled in Supabase.');
+      console.error('   Fix: Supabase Dashboard → Authentication → Providers → Google → Enable "Save provider tokens"');
+      
+      return ApiResponse.error(
+        'No Gmail token found. Please enable "Save provider tokens" in Supabase Dashboard and re-authenticate with Google.',
+        404,
+        'NO_GMAIL_TOKEN'
+      );
     }
 
     // Return tokens

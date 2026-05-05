@@ -79,9 +79,29 @@ export async function GET(request: NextRequest) {
       provider: userInfo.provider,
     });
 
+    // Check if provider_token exists (requires "Save provider tokens" enabled in Supabase)
+    const providerToken = data.session.provider_token;
+    
+    if (!providerToken) {
+      console.warn('⚠️  provider_token is null. Please enable "Save provider tokens" in Supabase Dashboard:');
+      console.warn('   Supabase Dashboard → Authentication → Providers → Google → Enable "Save provider tokens"');
+    }
+
     // Redirect to frontend with success
     const frontendUrl = process.env.FRONTEND_SUCCESS_URL || process.env.FRONTEND_URL || 'http://localhost:5173/auth/callback';
-    const successUrl = `${frontendUrl}?access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}&provider_token=${data.session.provider_token || ''}`;
+    
+    // Build URL with tokens
+    const params = new URLSearchParams({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+    
+    // Only add provider_token if it exists
+    if (providerToken) {
+      params.append('provider_token', providerToken);
+    }
+    
+    const successUrl = `${frontendUrl}?${params.toString()}`;
     return Response.redirect(successUrl);
 
   } catch (error) {
