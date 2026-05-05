@@ -1,0 +1,5 @@
+# Email Utilities
+
+This directory contains utility functions for email processing:
+
+- `encryption.ts` - Config encryption utilities

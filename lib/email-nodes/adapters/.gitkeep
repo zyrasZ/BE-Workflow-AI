@@ -1,0 +1,7 @@
+# Email Provider Adapters
+
+This directory contains adapter implementations for different email providers:
+
+- `index.ts` - Adapter registry
+- `imap-adapter.ts` - IMAP/SMTP adapter
+- `gmail-adapter.ts` - Gmail API adapter

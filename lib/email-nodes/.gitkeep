@@ -1,0 +1,12 @@
+# Email Nodes Module
+
+This directory contains the email processing nodes implementation for the Office Automation Platform.
+
+## Structure
+
+- `types.ts` - Core types and interfaces
+- `parser.ts` - Email parser (mailparser wrapper)
+- `filter.ts` - Email filter engine
+- `template.ts` - Template engine (Handlebars wrapper)
+- `adapters/` - Provider adapters (IMAP, Gmail, Outlook)
+- `utils/` - Utility functions (encryption, etc.)

@@ -23,7 +23,9 @@
       "@/*": ["./*"],
       "@/lib/*": ["./lib/*"],
       "@/types/*": ["./types/*"],
-      "@/app/*": ["./app/*"]
+      "@/app/*": ["./app/*"],
+      "@/email-nodes": ["./lib/email-nodes"],
+      "@/email-nodes/*": ["./lib/email-nodes/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
