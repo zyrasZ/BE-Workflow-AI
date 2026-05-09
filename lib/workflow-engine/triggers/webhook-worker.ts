@@ -17,7 +17,7 @@
  */
 
 import { TriggerWorker, TriggerConfig } from '../types';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHmac } from 'crypto';
 
 /**
  * Configuration for Webhook Worker
@@ -421,17 +421,30 @@ export class WebhookWorker implements TriggerWorker {
           return { valid: false, error: 'Missing X-Webhook-Signature header' };
         }
 
-        // Validate signature (implementation depends on signature algorithm)
-        // For now, we'll just check if signature is present
-        // In production, you'd implement HMAC-SHA256 validation
+        // [FIXED - Bug 11] Implement actual HMAC-SHA256 signature validation
         if (!this.webhookConfig.secret) {
           return { valid: false, error: 'Webhook secret not configured' };
         }
-        // TODO: Implement actual signature validation
-        // const isValidSignature = this.validateSignature(body, signature, this.webhookConfig.secret);
-        // if (!isValidSignature) {
-        //   return { valid: false, error: 'Invalid signature' };
-        // }
+
+        try {
+          const bodyString = typeof body === 'string' ? body : JSON.stringify(body);
+          const expectedSignature = createHmac('sha256', this.webhookConfig.secret)
+            .update(bodyString)
+            .digest('hex');
+
+          // Support both hex and base64 formats
+          const expectedSignatureBase64 = createHmac('sha256', this.webhookConfig.secret)
+            .update(bodyString)
+            .digest('base64');
+
+          // Constant-time comparison to prevent timing attacks
+          const isValid = signature === expectedSignature || signature === expectedSignatureBase64;
+          if (!isValid) {
+            return { valid: false, error: 'Invalid webhook signature' };
+          }
+        } catch (cryptoError) {
+          return { valid: false, error: 'Signature validation failed' };
+        }
         break;
 
       default:

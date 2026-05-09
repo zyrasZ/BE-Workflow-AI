@@ -34,6 +34,7 @@ export class WorkflowExecutor {
    * @param workflowId - Workflow ID to execute
    * @param userId - User ID executing the workflow
    * @param triggerInput - Input data from trigger
+   * @param existingExecutionId - Optional existing execution ID (to avoid duplicate records)
    * @returns Execution ID
    * 
    * Requirement 19: Workflow Executor SHALL maintain the Execution Context throughout workflow execution
@@ -42,7 +43,8 @@ export class WorkflowExecutor {
   async execute(
     workflowId: string,
     userId: string,
-    triggerInput: Record<string, any> = {}
+    triggerInput: Record<string, any> = {},
+    existingExecutionId?: string
   ): Promise<string> {
     const supabase = createServiceClient();
 
@@ -71,23 +73,44 @@ export class WorkflowExecutor {
       throw new Error(`Workflow validation failed: ${errorMessages}`);
     }
 
-    // Create execution record
-    const { data: execution, error: executionError } = await supabase
-      .from('executions')
-      .insert({
-        workflow_id: workflowId,
-        user_id: userId,
-        status: 'running',
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    // Use existing execution ID or create new execution record
+    let executionId: string;
+    
+    if (existingExecutionId) {
+      // Use provided execution ID (API route already created the record)
+      executionId = existingExecutionId;
+      
+      // Verify the execution record exists and belongs to this user
+      const { data: existingExecution, error: verifyError } = await supabase
+        .from('executions')
+        .select('id')
+        .eq('id', existingExecutionId)
+        .eq('user_id', userId)
+        .eq('workflow_id', workflowId)
+        .single();
+      
+      if (verifyError || !existingExecution) {
+        throw new Error(`Execution record not found: ${existingExecutionId}`);
+      }
+    } else {
+      // Create new execution record (standalone usage)
+      const { data: execution, error: executionError } = await supabase
+        .from('executions')
+        .insert({
+          workflow_id: workflowId,
+          user_id: userId,
+          status: 'running',
+          started_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
 
-    if (executionError || !execution) {
-      throw new Error('Failed to create execution record');
+      if (executionError || !execution) {
+        throw new Error('Failed to create execution record');
+      }
+
+      executionId = execution.id;
     }
-
-    const executionId = execution.id;
 
     // Create execution context
     const context = new ExecutionContextImpl(userId, workflowId, executionId);
@@ -205,77 +228,67 @@ export class WorkflowExecutor {
 
       // Execute current level in parallel
       if (currentLevel.length > 0) {
-        try {
-          const nodeResults = await this.executeNodesInParallel(
-            currentLevel,
-            nodes,
-            edges,
-            context,
-            supabase
-          );
+        const nodeResults = await this.executeNodesInParallel(
+          currentLevel,
+          nodes,
+          edges,
+          context,
+          supabase
+        );
 
-          // Mark nodes as executed
-          for (const nodeId of currentLevel) {
-            executed.add(nodeId);
-            inProgress.delete(nodeId);
-          }
+        // Mark nodes as executed
+        for (const nodeId of currentLevel) {
+          executed.add(nodeId);
+          inProgress.delete(nodeId);
+        }
 
-          // Add downstream nodes to queue based on branches
-          for (const nodeId of currentLevel) {
-            const result = nodeResults.get(nodeId);
-            
-            // If node specifies branches, only follow those branches
-            if (result && result.branches && result.branches.length > 0) {
-              for (const branchNodeId of result.branches) {
-                if (!executed.has(branchNodeId) && !remainingQueue.includes(branchNodeId)) {
-                  remainingQueue.push(branchNodeId);
-                }
+        // Add downstream nodes to queue based on branches
+        for (const nodeId of currentLevel) {
+          const result = nodeResults.get(nodeId);
+          if (!result) continue;
+
+          // Handle failed nodes
+          if (!result.success) {
+            // If we have a global error handler, route to it
+            if (globalErrorHandler && !executed.has(globalErrorHandler)) {
+              console.log(`Node ${nodeId} failed, routing to global error handler: ${globalErrorHandler}`);
+              
+              // Store error information in context
+              context.setVariable('__globalError', {
+                message: result.error || 'Node execution failed',
+                failedNode: nodeId,
+                timestamp: new Date().toISOString(),
+              });
+
+              // Add error handler to queue
+              if (!remainingQueue.includes(globalErrorHandler)) {
+                remainingQueue.push(globalErrorHandler);
               }
             } else {
-              // No branches specified - follow all outgoing edges (default behavior)
-              const downstreamNodes = adjacency.get(nodeId) || [];
-              for (const downstream of downstreamNodes) {
-                if (!executed.has(downstream) && !remainingQueue.includes(downstream)) {
-                  remainingQueue.push(downstream);
-                }
+              // No error handler available, throw error to fail workflow
+              throw new Error(`Node ${nodeId} failed: ${result.error || 'Unknown error'}`);
+            }
+            continue;
+          }
+
+          // CRITICAL: if branches is defined (even empty array), use ONLY branches
+          // Do NOT fallback to adjacency graph when branches is defined
+          if (result.branches !== undefined) {
+            // Node explicitly specified branches (could be empty for terminal nodes)
+            for (const branchNodeId of result.branches) {
+              if (!executed.has(branchNodeId) && !remainingQueue.includes(branchNodeId)) {
+                remainingQueue.push(branchNodeId);
               }
             }
-          }
-        } catch (error) {
-          // If a node fails and we have a global error handler, execute it
-          if (globalErrorHandler && !executed.has(globalErrorHandler)) {
-            console.log(`Node execution failed, executing global error handler: ${globalErrorHandler}`);
-            
-            // Store error information in context
-            context.setVariable('__globalError', {
-              message: error instanceof Error ? error.message : String(error),
-              failedNodes: currentLevel,
-              timestamp: new Date().toISOString(),
-            });
-
-            try {
-              // Execute global error handler
-              await this.executeNode(
-                globalErrorHandler,
-                nodes,
-                edges,
-                context,
-                supabase
-              );
-              
-              // Mark error handler as executed
-              executed.add(globalErrorHandler);
-              
-              // Continue with remaining nodes if error handler succeeded
-              // This allows the workflow to recover from errors
-            } catch (handlerError) {
-              // If error handler also fails, throw the original error
-              console.error('Global error handler failed:', handlerError);
-              throw error;
-            }
           } else {
-            // No error handler or error handler already executed, throw error
-            throw error;
+            // Only fallback to adjacency when branches is undefined (not when empty)
+            // This is the default behavior for nodes that don't use branching logic
+            const downstreamNodes = adjacency.get(nodeId) || [];
+            for (const downstream of downstreamNodes) {
+              if (!executed.has(downstream) && !remainingQueue.includes(downstream)) {
+                remainingQueue.push(downstream);
+              }
+            }
           }
         }
       }
@@ -309,15 +322,22 @@ export class WorkflowExecutor {
       this.executeNode(nodeId, nodes, edges, context, supabase)
     );
 
-    // Use Promise.allSettled to execute in parallel
+    // Use Promise.allSettled to execute in parallel and collect all results
     const results = await Promise.allSettled(promises);
 
-    // Collect results and check for failures
+    // Collect results - don't throw immediately on failure
+    // Instead, collect failures as NodeResult with success: false
     const nodeResults = new Map<string, NodeResult>();
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       if (result.status === 'rejected') {
-        throw new Error(`Node ${nodeIds[i]} failed: ${result.reason}`);
+        // Store failure as a result with success: false and empty branches
+        nodeResults.set(nodeIds[i], {
+          success: false,
+          output: {},
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          branches: [], // Empty branches for failed nodes
+        });
       } else {
         nodeResults.set(nodeIds[i], result.value);
       }
@@ -712,6 +732,7 @@ export class WorkflowExecutor {
    * @param nodeId - Node ID to gather input for
    * @param edges - All workflow edges
    * @param context - Execution context
+   * @param strategy - Merge strategy: 'namespace' (safe, default) or 'merge' (legacy, has conflicts)
    * @returns Input data object
    * 
    * Requirement 19: Workflow Executor SHALL pass output data from each node to its connected downstream nodes
@@ -719,7 +740,8 @@ export class WorkflowExecutor {
   private gatherNodeInput(
     nodeId: string,
     edges: WorkflowEdge[],
-    context: ExecutionContextImpl
+    context: ExecutionContextImpl,
+    strategy: 'namespace' | 'merge' = 'namespace'
   ): Record<string, any> {
     const incomingEdges = edges.filter(e => e.target === nodeId);
 
@@ -734,33 +756,48 @@ export class WorkflowExecutor {
       return context.getNodeOutput(parentId) || {};
     }
 
-    // Multiple inputs - merge all parent outputs with namespacing to avoid key conflicts
-    // Each parent's output is stored under a key prefixed with the parent node ID
-    const mergedInput: Record<string, any> = {};
-    
-    for (const edge of incomingEdges) {
-      const parentId = edge.source;
-      const parentOutput = context.getNodeOutput(parentId) || {};
+    // Multiple inputs - use strategy to handle merging
+    if (strategy === 'namespace') {
+      // SAFE: Only use namespaced keys to avoid conflicts completely
+      // Each parent's output is stored under __from_<nodeId>
+      // Downstream nodes access data via: input.__from_nodeX.field
+      const mergedInput: Record<string, any> = {};
       
-      // Store parent output under namespaced key to prevent overwrites
-      mergedInput[`__from_${parentId}`] = parentOutput;
+      for (const edge of incomingEdges) {
+        const parentId = edge.source;
+        const parentOutput = context.getNodeOutput(parentId) || {};
+        mergedInput[`__from_${parentId}`] = parentOutput;
+      }
       
-      // Also merge keys directly for backward compatibility
-      // If key conflicts exist, the namespaced version above preserves all data
-      for (const [key, value] of Object.entries(parentOutput)) {
-        if (!(key in mergedInput)) {
-          mergedInput[key] = value;
-        } else if (!key.startsWith('__from_')) {
-          // Key conflict detected - convert to array to preserve both values
-          if (!Array.isArray(mergedInput[key])) {
-            mergedInput[key] = [mergedInput[key]];
+      return mergedInput;
+    } else {
+      // LEGACY: Merge keys directly (has risk of conflicts and array conversion)
+      // This is kept for backward compatibility but not recommended
+      const mergedInput: Record<string, any> = {};
+      
+      for (const edge of incomingEdges) {
+        const parentId = edge.source;
+        const parentOutput = context.getNodeOutput(parentId) || {};
+        
+        // Store parent output under namespaced key for fallback access
+        mergedInput[`__from_${parentId}`] = parentOutput;
+        
+        // Also merge keys directly
+        for (const [key, value] of Object.entries(parentOutput)) {
+          if (!(key in mergedInput)) {
+            mergedInput[key] = value;
+          } else if (!key.startsWith('__from_')) {
+            // Key conflict detected - convert to array to preserve both values
+            if (!Array.isArray(mergedInput[key])) {
+              mergedInput[key] = [mergedInput[key]];
+            }
+            mergedInput[key].push(value);
           }
-          mergedInput[key].push(value);
         }
       }
+      
+      return mergedInput;
     }
-
-    return mergedInput;
   }
 
   /**

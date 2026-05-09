@@ -148,6 +148,24 @@ export interface EmailProviderAdapter {
    * Get rate limit information for this provider
    */
   getRateLimits(): RateLimitInfo;
+
+  /**
+   * [FIXED - Bug 12] Mark an email as read
+   * Optional method - not all adapters may support this
+   */
+  markAsRead?(id: string): Promise<void>;
+
+  /**
+   * [FIXED - Bug 12] Move an email to a different folder
+   * Optional method - not all adapters may support this
+   */
+  moveToFolder?(id: string, folder: string): Promise<void>;
+
+  /**
+   * [FIXED - Bug 12] Add a label to an email (Gmail-specific)
+   * Optional method - only supported by Gmail adapter
+   */
+  addLabel?(id: string, label: string): Promise<void>;
 }
 
 // ============================================================================

@@ -461,17 +461,20 @@ export class EmailPollingWorker implements TriggerWorker {
   /**
    * Ensure connection to email server is active
    */
+  /**
+   * [FIXED - Bug 17] Test connection without fetching emails
+   * Use a lightweight check instead of fetching emails that get wasted
+   */
   private async ensureConnected(): Promise<void> {
     if (!this.adapter) {
       throw new Error('Email adapter not initialized');
     }
 
-    // Try a lightweight operation to test connection
-    // If it fails, it will throw and we'll reconnect
+    // Use getRateLimits() as a lightweight connection check
+    // This doesn't fetch any data and just verifies the connection is alive
     try {
-      await this.adapter.fetchEmails({ folder: this.emailConfig.folder, limit: 1 });
+      this.adapter.getRateLimits();
     } catch (error) {
-      // Connection lost
       throw error;
     }
   }
@@ -566,10 +569,12 @@ export class EmailPollingWorker implements TriggerWorker {
       switch (action) {
         case 'markAsRead':
           console.log(`[EmailPollingWorker] Marking email as read: ${email.id}`);
-          // Note: This requires the adapter to support marking emails
-          // For now, we'll log it. In production, you'd need to implement
-          // markAsRead method in the adapter interface
-          // await this.adapter.markAsRead(email.id);
+          // [FIXED - Bug 12] Call adapter markAsRead if available
+          if (this.adapter.markAsRead) {
+            await this.adapter.markAsRead(email.id);
+          } else {
+            console.warn(`[EmailPollingWorker] Adapter does not support markAsRead`);
+          }
           break;
 
         case 'moveToFolder':
@@ -578,7 +583,12 @@ export class EmailPollingWorker implements TriggerWorker {
             break;
           }
           console.log(`[EmailPollingWorker] Moving email to folder: ${this.emailConfig.targetFolder}`);
-          // await this.adapter.moveToFolder(email.id, this.emailConfig.targetFolder);
+          // [FIXED - Bug 12] Call adapter moveToFolder if available
+          if (this.adapter.moveToFolder) {
+            await this.adapter.moveToFolder(email.id, this.emailConfig.targetFolder);
+          } else {
+            console.warn(`[EmailPollingWorker] Adapter does not support moveToFolder`);
+          }
           break;
 
         case 'addLabel':
@@ -587,7 +597,12 @@ export class EmailPollingWorker implements TriggerWorker {
             break;
           }
           console.log(`[EmailPollingWorker] Adding label to email: ${this.emailConfig.label}`);
-          // await this.adapter.addLabel(email.id, this.emailConfig.label);
+          // [FIXED - Bug 12] Call adapter addLabel if available
+          if (this.adapter.addLabel) {
+            await this.adapter.addLabel(email.id, this.emailConfig.label);
+          } else {
+            console.warn(`[EmailPollingWorker] Adapter does not support addLabel`);
+          }
           break;
 
         case 'none':

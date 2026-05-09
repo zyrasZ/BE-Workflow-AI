@@ -39,6 +39,13 @@ export class CodeNode extends BaseNode {
     'child_process',
     'eval',
     'Function',
+    'constructor',
+    'prototype',
+    '__proto__',
+    'globalThis',
+    'import',
+    'Proxy',
+    'Reflect',
   ];
 
   /**
@@ -58,9 +65,11 @@ export class CodeNode extends BaseNode {
       const code = config.code;
       const timeout = config.timeout || 30000; // Default 30 seconds
 
-      // Check for blocked keywords
+      // Check for blocked keywords using word boundary regex
+      // This prevents false positives like "required" matching "require"
       for (const keyword of this.BLOCKED_KEYWORDS) {
-        if (code.includes(keyword)) {
+        const blockedPattern = new RegExp(`\\b${keyword}\\b`, 'i');
+        if (blockedPattern.test(code)) {
           return this.failure(`Blocked keyword detected: ${keyword}`);
         }
       }
@@ -126,13 +135,48 @@ export class CodeNode extends BaseNode {
     timeoutMs: number
   ): Promise<any> {
     return new Promise((resolve, reject) => {
+      // Track all timers created by user code for cleanup
+      const activeTimers = new Set<NodeJS.Timeout>();
+      
       // Set up timeout
       const timeoutId = setTimeout(() => {
+        // Clean up all active timers before rejecting
+        this.cleanupTimers(activeTimers);
         reject(new Error(`Code execution timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
       try {
-        // Build limited scope
+        // Wrapped setTimeout that tracks timers
+        const wrappedSetTimeout = (callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
+          const timerId = setTimeout((...callbackArgs: any[]) => {
+            // Remove from active timers when it executes
+            activeTimers.delete(timerId);
+            callback(...callbackArgs);
+          }, delay, ...args);
+          activeTimers.add(timerId);
+          return timerId;
+        };
+
+        // Wrapped setInterval that tracks timers
+        const wrappedSetInterval = (callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
+          const timerId = setInterval(callback, delay, ...args);
+          activeTimers.add(timerId);
+          return timerId;
+        };
+
+        // Wrapped clearTimeout that removes from tracking
+        const wrappedClearTimeout = (timerId: NodeJS.Timeout) => {
+          activeTimers.delete(timerId);
+          clearTimeout(timerId);
+        };
+
+        // Wrapped clearInterval that removes from tracking
+        const wrappedClearInterval = (timerId: NodeJS.Timeout) => {
+          activeTimers.delete(timerId);
+          clearInterval(timerId);
+        };
+
+        // Build limited scope with wrapped timer functions
         const scope = {
           input: input,
           variables: context.variables,
@@ -153,10 +197,10 @@ export class CodeNode extends BaseNode {
           Array: Array,
           Object: Object,
           fetch: globalThis.fetch,
-          setTimeout: setTimeout,
-          setInterval: setInterval,
-          clearTimeout: clearTimeout,
-          clearInterval: clearInterval,
+          setTimeout: wrappedSetTimeout,
+          setInterval: wrappedSetInterval,
+          clearTimeout: wrappedClearTimeout,
+          clearInterval: wrappedClearInterval,
         };
 
         // Create function with limited scope
@@ -178,20 +222,46 @@ export class CodeNode extends BaseNode {
           result
             .then((value) => {
               clearTimeout(timeoutId);
+              // Clean up any remaining timers after successful completion
+              this.cleanupTimers(activeTimers);
               resolve(value);
             })
             .catch((error) => {
               clearTimeout(timeoutId);
+              // Clean up any remaining timers after error
+              this.cleanupTimers(activeTimers);
               reject(error);
             });
         } else {
           clearTimeout(timeoutId);
+          // Clean up any remaining timers after synchronous completion
+          this.cleanupTimers(activeTimers);
           resolve(result);
         }
       } catch (error) {
         clearTimeout(timeoutId);
+        // Clean up any remaining timers after error
+        this.cleanupTimers(activeTimers);
         reject(error);
       }
     });
+  }
+
+  /**
+   * Clean up all active timers
+   * 
+   * @param activeTimers - Set of active timer IDs to clean up
+   */
+  private cleanupTimers(activeTimers: Set<NodeJS.Timeout>): void {
+    for (const timerId of activeTimers) {
+      try {
+        clearTimeout(timerId);
+        clearInterval(timerId);
+      } catch (error) {
+        // Ignore errors during cleanup
+        console.warn('[CodeNode] Failed to clear timer:', error);
+      }
+    }
+    activeTimers.clear();
   }
 }

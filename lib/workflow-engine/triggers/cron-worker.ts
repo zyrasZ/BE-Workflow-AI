@@ -268,12 +268,17 @@ export class CronWorker implements TriggerWorker {
       console.log(`[CronWorker] Scheduled: ${this.nextExecutionTime.toISOString()}`);
       console.log(`[CronWorker] Current: ${now.toISOString()}`);
 
-      // Trigger execution
+      // [FIXED - Bug 13] Handle trigger execution errors with .catch()
+      // Note: checkExecutionTime is sync (called from setInterval), so we can't await
+      // Instead, use .catch() to handle promise rejections
       this.triggerExecution({
         scheduledTime: this.nextExecutionTime.toISOString(),
         actualTime: now.toISOString(),
         triggerId: this.config.id,
         triggerType: 'schedule',
+      }).catch(error => {
+        // [FIXED - Bug 13] Log errors instead of silent promise rejection
+        console.error(`[CronWorker] Scheduled execution failed: ${error}`);
       });
 
       // Calculate next execution time

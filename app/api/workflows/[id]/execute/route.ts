@@ -75,8 +75,9 @@ export async function POST(
     const executionId = execution.id;
 
     // Execute workflow in background (fire and forget)
+    // Pass existing execution ID to avoid creating duplicate records
     const executor = new WorkflowExecutor();
-    executor.execute(workflowId, user.id, triggerInput).catch(error => {
+    executor.execute(workflowId, user.id, triggerInput, executionId).catch(error => {
       console.error('Workflow execution failed:', error);
       // Error is already logged in executor, no need to rethrow
     });

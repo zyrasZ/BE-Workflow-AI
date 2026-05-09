@@ -19,6 +19,7 @@ import { WorkflowExecutor } from '../executor';
 import { CronWorker } from './cron-worker';
 import { EmailPollingWorker } from './email-polling-worker';
 import { WebhookWorker } from './webhook-worker';
+import { createHash } from 'crypto';
 
 /**
  * TriggerManager manages all workflow triggers
@@ -110,11 +111,13 @@ export class TriggerManager {
           // Create CronWorker for schedule trigger
           worker = new CronWorker(config);
           // Set trigger callback to execute workflow
+          // [FIXED - Bug 9] Load userId from workflow before executing
           (worker as CronWorker).setTriggerCallback(async (data) => {
+            const userId = await this.loadWorkflowUserId(config.workflowId);
             const executionId = await this.triggerExecution(
               config.id,
               config.workflowId,
-              '', // userId will be set from workflow config
+              userId,
               data
             );
             return executionId || '';
@@ -125,11 +128,13 @@ export class TriggerManager {
           // Create EmailPollingWorker for email trigger
           worker = new EmailPollingWorker(config);
           // Set trigger callback to execute workflow
+          // [FIXED - Bug 9] Load userId from workflow before executing
           (worker as EmailPollingWorker).setTriggerCallback(async (data) => {
+            const userId = await this.loadWorkflowUserId(config.workflowId);
             const executionId = await this.triggerExecution(
               config.id,
               config.workflowId,
-              '', // userId will be set from workflow config
+              userId,
               data
             );
             return executionId || '';
@@ -140,11 +145,13 @@ export class TriggerManager {
           // Create WebhookWorker for webhook trigger
           worker = new WebhookWorker(config);
           // Set trigger callback to execute workflow
+          // [FIXED - Bug 9] Load userId from workflow before executing
           (worker as WebhookWorker).setTriggerCallback(async (data) => {
+            const userId = await this.loadWorkflowUserId(config.workflowId);
             const executionId = await this.triggerExecution(
               config.id,
               config.workflowId,
-              '', // userId will be set from workflow config
+              userId,
               data
             );
             return executionId || '';
@@ -381,21 +388,26 @@ export class TriggerManager {
 
   /**
    * Hash event data for deduplication
+   * [FIXED - Bug 14] Use crypto.createHash for collision-resistant hashing
    * 
    * @param eventData - Event data to hash
    * @returns Hash string
    */
   private hashEventData(eventData: Record<string, any>): string {
-    // Simple hash based on JSON stringification
-    // In production, consider using a proper hash function
-    const jsonStr = JSON.stringify(eventData, Object.keys(eventData).sort());
-    let hash = 0;
-    for (let i = 0; i < jsonStr.length; i++) {
-      const char = jsonStr.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
+    try {
+      const jsonStr = JSON.stringify(eventData, Object.keys(eventData).sort());
+      return createHash('sha256').update(jsonStr).digest('hex').slice(0, 16);
+    } catch {
+      // Fallback to simple hash if crypto unavailable
+      const jsonStr = JSON.stringify(eventData, Object.keys(eventData).sort());
+      let hash = 0;
+      for (let i = 0; i < jsonStr.length; i++) {
+        const char = jsonStr.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return hash.toString(36);
     }
-    return hash.toString(36);
   }
 
   /**
@@ -432,6 +444,32 @@ export class TriggerManager {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * [FIXED - Bug 9] Load user_id from workflow record
+   * Used by trigger callbacks to get the correct userId before execution
+   */
+  private async loadWorkflowUserId(workflowId: string): Promise<string> {
+    try {
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const supabase = createServiceClient();
+      const { data, error } = await supabase
+        .from('workflows')
+        .select('user_id')
+        .eq('id', workflowId)
+        .single();
+
+      if (error || !data) {
+        console.error(`[TriggerManager] Failed to load workflow userId for ${workflowId}:`, error);
+        return '';
+      }
+
+      return data.user_id;
+    } catch (error) {
+      console.error(`[TriggerManager] Error loading workflow userId:`, error);
+      return '';
+    }
   }
 }
 

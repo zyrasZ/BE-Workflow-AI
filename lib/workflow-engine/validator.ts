@@ -152,6 +152,18 @@ export function validateWorkflow(workflow: WorkflowDefinition): WorkflowValidati
   const configErrors = validateNodeConfigurations(workflow.nodes);
   errors.push(...configErrors);
 
+  // [FIXED - Bug 15] Validate globalErrorHandler references an existing node
+  if (workflow.globalErrorHandler) {
+    const nodeIds = new Set(workflow.nodes.map(n => n.id));
+    if (!nodeIds.has(workflow.globalErrorHandler)) {
+      errors.push({
+        type: 'invalid-config',
+        message: `globalErrorHandler references non-existent node: '${workflow.globalErrorHandler}'`,
+        details: { globalErrorHandler: workflow.globalErrorHandler },
+      });
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,

@@ -278,6 +278,51 @@ export class IMAPAdapter implements EmailProviderAdapter {
   }
 
   /**
+   * [FIXED - Bug 12] Mark an email as read by adding \\Seen flag
+   */
+  async markAsRead(id: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Not connected to IMAP server');
+    }
+
+    try {
+      // Use imapflow to add the \\Seen flag
+      await this.client.messageFlagsAdd(
+        { uid: true },
+        id,
+        ['\\Seen'],
+        { uid: true }
+      );
+      console.log(`[IMAPAdapter] Marked email ${id} as read`);
+    } catch (error) {
+      console.error(`[IMAPAdapter] Failed to mark email as read: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * [FIXED - Bug 12] Move an email to a different folder
+   */
+  async moveToFolder(id: string, folder: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Not connected to IMAP server');
+    }
+
+    try {
+      await this.client.messageMove(
+        { uid: true },
+        id,
+        folder,
+        { uid: true }
+      );
+      console.log(`[IMAPAdapter] Moved email ${id} to folder ${folder}`);
+    } catch (error) {
+      console.error(`[IMAPAdapter] Failed to move email: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
    * Build IMAP search criteria from FetchOptions
    * 
    * Converts our unified FetchOptions format to IMAP search query format

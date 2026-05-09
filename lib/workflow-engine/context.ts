@@ -253,7 +253,8 @@ export class ExecutionContextImpl implements ExecutionContext {
   }
 
   /**
-   * Create a shallow copy of the context
+   * Create a deep copy of the context
+   * [FIXED - Bug 16] Deep copy nodeOutputs to prevent mutation leaks
    * Useful for testing or branching execution paths
    * 
    * @returns New ExecutionContext instance with copied data
@@ -265,8 +266,12 @@ export class ExecutionContextImpl implements ExecutionContext {
       this.executionId
     );
 
-    cloned.variables = { ...this.variables };
-    cloned.nodeOutputs = new Map(this.nodeOutputs);
+    cloned.variables = JSON.parse(JSON.stringify(this.variables));
+    // Deep copy Map values to prevent mutation leaks
+    cloned.nodeOutputs = new Map();
+    for (const [key, value] of this.nodeOutputs.entries()) {
+      cloned.nodeOutputs.set(key, JSON.parse(JSON.stringify(value)));
+    }
     cloned.currentNodeId = this.currentNodeId;
     cloned.executionPath = [...this.executionPath];
 

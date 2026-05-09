@@ -40,15 +40,22 @@ export interface ExpressionScope {
  * 
  * @param expr - Expression string to resolve
  * @param scope - Scope object containing variables and node outputs
+ * @param options - Optional configuration for strict mode
  * @returns Resolved value
  * 
  * Requirement 21: Execution Context SHALL provide methods to get and set values by path
  */
-export function resolveExpression(expr: string, scope: ExpressionScope): any {
+export function resolveExpression(
+  expr: string, 
+  scope: ExpressionScope,
+  options?: { strict?: boolean }
+): any {
   // If not a string, return as-is
   if (!expr || typeof expr !== 'string') {
     return expr;
   }
+
+  const strict = options?.strict ?? false;
 
   // Check if it's a template expression (match {{...}} including empty)
   const templateRegex = /\{\{(.*?)\}\}/g;
@@ -69,7 +76,20 @@ export function resolveExpression(expr: string, scope: ExpressionScope): any {
       return '';
     }
     
-    return evaluateExpression(code, scope);
+    const value = evaluateExpression(code, scope);
+    
+    // Handle undefined/null values with warning or error
+    if (value === undefined || value === null) {
+      const warningMsg = `Expression resolved to ${value === null ? 'null' : 'undefined'}: "${expr}" (code: "${code}")`;
+      
+      if (strict) {
+        throw new Error(warningMsg);
+      } else {
+        console.warn(`[Expression Warning] ${warningMsg}`);
+      }
+    }
+    
+    return value;
   }
 
   // Multiple expressions or mixed with text - replace all and return string
@@ -82,7 +102,21 @@ export function resolveExpression(expr: string, scope: ExpressionScope): any {
     }
     
     const value = evaluateExpression(trimmedCode, scope);
-    return value !== undefined && value !== null ? String(value) : '';
+    
+    // Handle undefined/null values with warning or error
+    if (value === undefined || value === null) {
+      const warningMsg = `Expression resolved to ${value === null ? 'null' : 'undefined'}: "${match}" (code: "${trimmedCode}")`;
+      
+      if (strict) {
+        throw new Error(warningMsg);
+      } else {
+        console.warn(`[Expression Warning] ${warningMsg}`);
+      }
+      
+      return '';
+    }
+    
+    return String(value);
   });
 }
 
@@ -108,15 +142,8 @@ function evaluateExpression(code: string, scope: ExpressionScope): any {
   try {
     // Transform the code to use $scope prefix
     // This prevents direct access to global scope and limits execution to provided scope
-    let transformedCode = code;
-    
-    // Replace variables.xxx with $scope.variables.xxx
-    transformedCode = transformedCode.replace(/\bvariables\./g, '$scope.variables.');
-    
-    // Replace node-X references with $scope['node-X']
-    // Match patterns like node-1, node-abc, node-test_123, etc. followed by a dot
-    // Supports alphanumeric, hyphens, and underscores in node IDs
-    transformedCode = transformedCode.replace(/\b(node-[a-zA-Z0-9_-]+)\./g, "$scope['$1'].");
+    // IMPORTANT: Only transform code outside of string literals to avoid breaking strings
+    const transformedCode = transformCodeOutsideStrings(code);
     
     // Use Function constructor to evaluate expression with limited scope
     // The function receives $scope as parameter and evaluates the transformed code
@@ -133,6 +160,91 @@ function evaluateExpression(code: string, scope: ExpressionScope): any {
 }
 
 /**
+ * Transform code by replacing variables and node references, but only outside string literals
+ * 
+ * This function splits the code into parts that are inside strings and parts that are outside,
+ * then only applies transformations to the parts outside strings.
+ * 
+ * Handles:
+ * - Single quotes: 'string'
+ * - Double quotes: "string"
+ * - Template literals: `string`
+ * - Escaped quotes: \', \", \`
+ * 
+ * @param code - Original code to transform
+ * @returns Transformed code with $scope prefixes only outside strings
+ */
+function transformCodeOutsideStrings(code: string): string {
+  const parts: Array<{ text: string; isString: boolean }> = [];
+  let currentPart = '';
+  let isInString = false;
+  let stringDelimiter: string | null = null;
+  let i = 0;
+
+  // Parse the code character by character to identify string boundaries
+  while (i < code.length) {
+    const char = code[i];
+    const prevChar = i > 0 ? code[i - 1] : '';
+
+    // Check if we're starting or ending a string
+    if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
+      if (!isInString) {
+        // Starting a string
+        if (currentPart) {
+          parts.push({ text: currentPart, isString: false });
+          currentPart = '';
+        }
+        isInString = true;
+        stringDelimiter = char;
+        currentPart += char;
+      } else if (char === stringDelimiter) {
+        // Ending a string
+        currentPart += char;
+        parts.push({ text: currentPart, isString: true });
+        currentPart = '';
+        isInString = false;
+        stringDelimiter = null;
+      } else {
+        // Different quote inside string
+        currentPart += char;
+      }
+    } else {
+      currentPart += char;
+    }
+
+    i++;
+  }
+
+  // Add remaining part
+  if (currentPart) {
+    parts.push({ text: currentPart, isString: isInString });
+  }
+
+  // Transform only non-string parts
+  const transformed = parts.map(part => {
+    if (part.isString) {
+      // Keep string literals as-is
+      return part.text;
+    } else {
+      // Apply transformations to code outside strings
+      let text = part.text;
+      
+      // Replace variables.xxx with $scope.variables.xxx
+      text = text.replace(/\bvariables\./g, '$scope.variables.');
+      
+      // Replace node-X references with $scope['node-X']
+      // Match patterns like node-1, node-abc, node-test_123, etc. followed by a dot
+      // Supports alphanumeric, hyphens, and underscores in node IDs
+      text = text.replace(/\b(node-[a-zA-Z0-9_-]+)\./g, "$scope['$1'].");
+      
+      return text;
+    }
+  }).join('');
+
+  return transformed;
+}
+
+/**
  * Resolve multiple expressions in an object
  * 
  * Recursively processes an object and resolves all string values that contain expressions.
@@ -140,6 +252,7 @@ function evaluateExpression(code: string, scope: ExpressionScope): any {
  * 
  * @param obj - Object containing expressions to resolve
  * @param scope - Scope object containing variables and node outputs
+ * @param options - Optional configuration for strict mode
  * @returns Object with all expressions resolved
  * 
  * Example:
@@ -157,26 +270,27 @@ function evaluateExpression(code: string, scope: ExpressionScope): any {
  */
 export function resolveExpressions(
   obj: Record<string, any>,
-  scope: ExpressionScope
+  scope: ExpressionScope,
+  options?: { strict?: boolean }
 ): Record<string, any> {
   const resolved: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'string') {
       // Resolve string expressions
-      resolved[key] = resolveExpression(value, scope);
+      resolved[key] = resolveExpression(value, scope, options);
     } else if (Array.isArray(value)) {
       // Recursively resolve array items
       resolved[key] = value.map(item =>
         typeof item === 'object' && item !== null
-          ? resolveExpressions(item, scope)
+          ? resolveExpressions(item, scope, options)
           : typeof item === 'string'
-          ? resolveExpression(item, scope)
+          ? resolveExpression(item, scope, options)
           : item
       );
     } else if (typeof value === 'object' && value !== null) {
       // Recursively resolve nested objects
-      resolved[key] = resolveExpressions(value, scope);
+      resolved[key] = resolveExpressions(value, scope, options);
     } else {
       // Keep non-string values as-is
       resolved[key] = value;
