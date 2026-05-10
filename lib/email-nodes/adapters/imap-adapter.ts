@@ -309,7 +309,6 @@ export class IMAPAdapter implements EmailProviderAdapter {
 
     try {
       await this.client.messageMove(
-        { uid: true },
         id,
         folder,
         { uid: true }
