@@ -47,11 +47,5 @@
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/jobs/cleanup-rate-limits",
-      "schedule": "0 * * * *"
-    }
   ]
 }
