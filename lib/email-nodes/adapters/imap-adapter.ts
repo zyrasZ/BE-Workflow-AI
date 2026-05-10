@@ -288,7 +288,6 @@ export class IMAPAdapter implements EmailProviderAdapter {
     try {
       // Use imapflow to add the \\Seen flag
       await this.client.messageFlagsAdd(
-        { uid: true },
         id,
         ['\\Seen'],
         { uid: true }
