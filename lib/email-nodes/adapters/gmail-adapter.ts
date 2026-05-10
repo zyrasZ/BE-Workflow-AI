@@ -59,16 +59,24 @@ export class GmailAdapter implements EmailProviderAdapter {
       throw new Error('Gmail OAuth2 credentials require accessToken');
     }
 
-    if (!config.clientId || !config.clientSecret) {
-      throw new Error('Gmail configuration requires clientId and clientSecret');
+    // Use server-side credentials from environment variables
+    // Frontend should NOT send clientId/clientSecret for security reasons
+    const clientId = config.clientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        'Gmail configuration requires clientId and clientSecret. ' +
+        'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server environment variables.'
+      );
     }
 
     try {
       // Create OAuth2 client
       this.oauth2Client = new google.auth.OAuth2(
-        config.clientId,
-        config.clientSecret,
-        config.redirectUri || 'http://localhost'
+        clientId,
+        clientSecret,
+        config.redirectUri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost'
       );
 
       // Set credentials
