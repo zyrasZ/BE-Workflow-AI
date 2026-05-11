@@ -1,9 +1,6 @@
 {
   "version": 2,
   "name": "office-automation-platform",
-  "env": {
-    "NODE_ENV": "production"
-  },
   "build": {
     "env": {
       "NEXT_TELEMETRY_DISABLED": "1"
@@ -12,13 +9,29 @@
   "functions": {
     "app/api/**/*.ts": {
       "memory": 1024,
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+        },
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
@@ -40,12 +53,6 @@
           "value": "camera=(), microphone=(), geolocation=()"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
     }
   ]
 }
