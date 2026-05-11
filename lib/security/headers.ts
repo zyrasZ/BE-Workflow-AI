@@ -15,16 +15,18 @@ export interface SecurityHeaders {
  */
 export const SECURITY_HEADERS: SecurityHeaders = {
   // Content Security Policy - Prevent XSS attacks
+  // Relaxed for OAuth and frontend integration
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://accounts.google.com https://apis.google.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://*.supabase.co https://api.openai.com https://api.groq.com https://generativelanguage.googleapis.com",
+    "connect-src 'self' https://*.supabase.co https://api.openai.com https://api.groq.com https://generativelanguage.googleapis.com https://accounts.google.com https://oauth2.googleapis.com",
+    "frame-src 'self' https://accounts.google.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    "form-action 'self' https://accounts.google.com",
     "upgrade-insecure-requests"
   ].join('; '),
 
