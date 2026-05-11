@@ -422,16 +422,24 @@ export class IMAPAdapter implements EmailProviderAdapter {
    * 
    * IMAP date format: DD-MMM-YYYY (e.g., "01-Jan-2024")
    * 
-   * @param date - Date object
+   * @param date - Date object or ISO string
    * @returns Formatted date string for IMAP
    */
-  private formatIMAPDate(date: Date): string {
+  private formatIMAPDate(date: Date | string): string {
+    // Convert string to Date if needed
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Validate date
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+      throw new Error(`Invalid date: ${date}`);
+    }
+    
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = months[dateObj.getMonth()];
+    const year = dateObj.getFullYear();
     
     return `${day}-${month}-${year}`;
   }

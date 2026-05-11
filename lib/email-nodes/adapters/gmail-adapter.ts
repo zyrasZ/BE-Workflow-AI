@@ -673,10 +673,18 @@ export class GmailAdapter implements EmailProviderAdapter {
    * @param date - Date object
    * @returns Formatted date string for Gmail
    */
-  private formatGmailDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
+  private formatGmailDate(date: Date | string): string {
+    // Convert string to Date if needed
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Validate date
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+      throw new Error(`Invalid date: ${date}`);
+    }
+    
+    const year = dateObj.getFullYear();
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const day = dateObj.getDate().toString().padStart(2, '0');
     return `${year}/${month}/${day}`;
   }
 
