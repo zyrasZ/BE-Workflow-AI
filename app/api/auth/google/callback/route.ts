@@ -90,6 +90,8 @@ export async function GET(request: NextRequest) {
     // Redirect to frontend with success
     const frontendUrl = process.env.FRONTEND_SUCCESS_URL || process.env.FRONTEND_URL || 'http://localhost:5173/auth/callback';
     
+    console.log('Redirecting to frontend:', frontendUrl);
+    
     // Build URL with tokens
     const params = new URLSearchParams({
       access_token: data.session.access_token,
@@ -102,7 +104,18 @@ export async function GET(request: NextRequest) {
     }
     
     const successUrl = `${frontendUrl}?${params.toString()}`;
-    return Response.redirect(successUrl);
+    
+    console.log('Redirect URL length:', successUrl.length);
+    console.log('Redirect URL (first 100 chars):', successUrl.substring(0, 100));
+    
+    // Use 302 redirect with proper headers
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': successUrl,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
 
   } catch (error) {
     console.error('OAuth callback error:', error);
