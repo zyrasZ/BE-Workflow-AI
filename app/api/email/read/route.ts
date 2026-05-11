@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const user = await getUser();
     if (!user) {
       console.warn('[Email Read API] Unauthorized access attempt');
-      return ApiResponse.unauthorized();
+      return ApiResponse.error('Unauthorized - Please login first', 401);
     }
 
     console.log(`[Email Read API] Request from user: ${user.id}`);
