@@ -17,6 +17,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/supabase/server';
 import { resetUserUsage } from '@/lib/middleware/usage-tracker';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Get authenticated user

@@ -13,6 +13,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { encryptConfig, decryptConfig, redactSensitiveFields } from '@/lib/email-nodes/utils/encryption';
 import { validateEmailAccountConnection } from '@/lib/email-nodes/utils/connection-validator';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 /**
  * Email account configuration types
  */

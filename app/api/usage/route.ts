@@ -34,6 +34,9 @@ import {
   getAggregatedUsageSummary,
 } from '@/lib/middleware/usage-tracker';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 /**
  * Quota tier definitions
  */

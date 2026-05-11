@@ -19,6 +19,9 @@ import {
   validateTemplateContent
 } from '@/lib/email/template-utils';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 /**
  * Email template types
  */
