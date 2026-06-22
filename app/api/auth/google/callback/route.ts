@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Create Supabase client
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Exchange code for session
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code!);
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Supabase client
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Exchange code for session
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);

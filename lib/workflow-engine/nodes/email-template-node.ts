@@ -255,7 +255,7 @@ export class EmailTemplateNode extends BaseNode {
   private async loadTemplateFromDatabase(templateId: string, userId: string): Promise<EmailTemplate> {
     // Import Supabase client
     const { createServerClient } = await import('@/lib/supabase/server');
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Query template from database
     const { data, error } = await supabase

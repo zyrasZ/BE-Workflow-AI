@@ -48,12 +48,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id: workflowId } = params;
+    const { id: workflowId } = await params;
 
     // Parse request body
     const body = await request.json();
@@ -160,12 +160,12 @@ export async function POST(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id: workflowId } = params;
+    const { id: workflowId } = await params;
 
     // Check if workflow exists and user has access
     const { data: workflow, error: workflowError } = await supabase

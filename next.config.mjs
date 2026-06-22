@@ -93,9 +93,7 @@ const nextConfig = {
   },
 
   // Experimental features for better performance
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js'],
-  },
+  serverExternalPackages: ['@supabase/supabase-js'],
 
   // Image optimization security
   images: {
@@ -118,10 +116,8 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
 
-  // ESLint configuration
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
+  // Turbopack configuration
+  turbopack: {},
 };
 
 export default nextConfig;

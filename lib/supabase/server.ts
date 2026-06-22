@@ -3,8 +3,8 @@ import { cookies, headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Server client for API routes
-export const createServerClient = () => {
-  const cookieStore = cookies();
+export const createServerClient = async () => {
+  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -38,7 +38,7 @@ export const createServerClient = () => {
 // Get authenticated user from request (supports both cookies and Authorization header)
 export const getUser = async () => {
   // Try to get token from Authorization header first
-  const headersList = headers();
+  const headersList = await headers();
   const authHeader = headersList.get('authorization');
   
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -71,7 +71,7 @@ export const getUser = async () => {
   }
   
   // Fallback to cookie-based authentication
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const {
     data: { user },
     error,

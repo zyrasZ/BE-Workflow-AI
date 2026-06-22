@@ -61,11 +61,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; triggerId: string } }
+  { params }: { params: Promise<{ id: string; triggerId: string }> }
 ) {
   try {
     const supabase = createServiceClient();
-    const { id: workflowId, triggerId } = params;
+    const { id: workflowId, triggerId } = await params;
 
     // Get trigger configuration from database
     const { data: triggerConfig, error: triggerError } = await supabase
@@ -255,11 +255,11 @@ export async function POST(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; triggerId: string } }
+  { params }: { params: Promise<{ id: string; triggerId: string }> }
 ) {
   try {
     const supabase = createServiceClient();
-    const { id: workflowId, triggerId } = params;
+    const { id: workflowId, triggerId } = await params;
 
     // Get trigger configuration from database
     const { data: triggerConfig, error: triggerError } = await supabase

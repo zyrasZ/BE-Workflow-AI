@@ -39,11 +39,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
-    const { id: workflowId } = params;
+    const { id: workflowId } = await params;
 
     // Parse request body
     let body: any = {};

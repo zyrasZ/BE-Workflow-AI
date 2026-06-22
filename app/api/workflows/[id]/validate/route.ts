@@ -40,12 +40,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id: workflowId } = params;
+    const { id: workflowId } = await params;
 
     // Load workflow from database
     const { data: workflow, error: loadError } = await supabase

@@ -8,12 +8,12 @@ export const dynamic = 'force-dynamic';
 // GET /api/executions/[id] - Get execution details with logs
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch execution with workflow details
     const { data, error } = await supabase
@@ -87,12 +87,12 @@ export async function GET(
 // PATCH /api/executions/[id] - Update execution status and results
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     const { status, results, error: executionError } = body;

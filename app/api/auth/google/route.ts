@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const redirectUrl = getOAuthRedirectUrl();
 
     // Create Supabase client
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Generate OAuth URL with Supabase
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     const redirectUrl = getOAuthRedirectUrl();
 
     // Create Supabase client
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Generate OAuth URL with Supabase
     const { data, error } = await supabase.auth.signInWithOAuth({

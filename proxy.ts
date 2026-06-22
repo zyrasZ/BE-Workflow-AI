@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applySecurityHeaders, applyCORSHeaders, handleCORSPreflight } from '@/lib/security/headers';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Handle CORS preflight requests
   const corsResponse = handleCORSPreflight(request);
   if (corsResponse) {

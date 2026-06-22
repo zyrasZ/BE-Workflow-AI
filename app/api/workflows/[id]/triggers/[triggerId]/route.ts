@@ -43,12 +43,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; triggerId: string } }
+  { params }: { params: Promise<{ id: string; triggerId: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id: workflowId, triggerId } = params;
+    const { id: workflowId, triggerId } = await params;
 
     // Parse request body
     const body = await request.json();
@@ -186,12 +186,12 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; triggerId: string } }
+  { params }: { params: Promise<{ id: string; triggerId: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id: workflowId, triggerId } = params;
+    const { id: workflowId, triggerId } = await params;
 
     // Check if workflow exists and user has access
     const { data: workflow, error: workflowError } = await supabase

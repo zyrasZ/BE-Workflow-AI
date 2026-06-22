@@ -8,12 +8,12 @@ export const dynamic = 'force-dynamic';
 // GET /api/workflows/[id] - Get single workflow
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Select all fields including metadata, created_at, updated_at
     const { data, error } = await supabase
@@ -36,12 +36,12 @@ export async function GET(
 // PUT /api/workflows/[id] - Update workflow
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     const { name, description, nodes, edges, metadata } = body;
@@ -111,12 +111,12 @@ export async function PUT(
 // DELETE /api/workflows/[id] - Delete workflow
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const supabase = createServiceClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Check ownership
     const { data: existing, error: checkError } = await supabase
